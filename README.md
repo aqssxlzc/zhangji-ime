@@ -80,8 +80,8 @@ scripts/fetch-deps.sh           下载 Android SDK 依赖与模型
 ```bash
 pkg install openjdk-21 aapt2 apksigner d8 python curl unzip tar git
 
-git clone https://github.com/<YOUR_NAME>/handheld-ime.git
-cd handheld-ime
+git clone https://github.com/aqssxlzc/zhangji-ime.git
+cd zhangji-ime
 
 ./scripts/fetch-deps.sh     # 约 400MB：android.jar / sherpa AAR / 两个模型
 ./build.sh                  # 产物：dist/voice-ime.apk（约 330MB）
