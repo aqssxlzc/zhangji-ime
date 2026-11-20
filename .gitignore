@@ -1,0 +1,13 @@
+.cache/
+build/
+dist/
+vendor/
+app/voiceime.keystore
+app/assets/para/
+app/assets/punc/
+*.apk
+*.keystore
+*.jks
+*.class
+*.log
+repo.xml
