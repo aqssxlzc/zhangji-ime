@@ -1,0 +1,106 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发布的 tag（例如 v1.5，需已存在）'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确定版本
+        id: v
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TAG="${{ inputs.tag }}"
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: 安装 build-tools
+        run: |
+          sdkmanager "build-tools;34.0.0"
+          echo "$ANDROID_HOME/build-tools/34.0.0" >> "$GITHUB_PATH"
+
+      - name: 恢复依赖缓存
+        uses: actions/cache@v4
+        with:
+          path: |
+            .cache
+            vendor
+            app/assets/para
+            app/assets/punc
+          key: deps-${{ hashFiles('scripts/fetch-deps.sh') }}
+
+      - name: 还原签名密钥
+        env:
+          KEYSTORE_B64: ${{ secrets.VOICEIME_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "${KEYSTORE_B64:-}" ]; then
+            echo "缺少 secret VOICEIME_KEYSTORE_B64" >&2
+            exit 1
+          fi
+          printf '%s' "$KEYSTORE_B64" | base64 -d > app/voiceime.keystore
+
+      - name: 下载依赖与模型
+        run: ./scripts/fetch-deps.sh
+
+      - name: 构建并签名
+        env:
+          VOICEIME_KS_PASS: ${{ secrets.VOICEIME_KS_PASS }}
+        run: ./build.sh
+
+      - name: 重命名产物
+        run: |
+          set -euo pipefail
+          mv dist/voice-ime.apk "dist/voice-ime-${{ steps.v.outputs.version }}.apk"
+          sha256sum dist/*.apk | tee dist/SHA256SUMS
+
+      - name: 上传 workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: voice-ime-${{ steps.v.outputs.version }}
+          path: |
+            dist/voice-ime-${{ steps.v.outputs.version }}.apk
+            dist/SHA256SUMS
+          if-no-files-found: error
+
+      - name: 发布 release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+          VERSION: ${{ steps.v.outputs.version }}
+        run: |
+          set -euo pipefail
+          NOTES=".github/release-notes/$TAG.md"
+          args=(--title "$TAG" --verify-tag)
+          if [ -f "$NOTES" ]; then
+            args+=(--notes-file "$NOTES")
+          else
+            args+=(--generate-notes)
+          fi
+          gh release create "$TAG" \
+            "dist/voice-ime-$VERSION.apk" dist/SHA256SUMS \
+            "${args[@]}"

@@ -99,6 +99,12 @@ cd zhangji-ime
 
 模型、`vendor/`、APK 和签名密钥都不会提交到仓库（见 `.gitignore`）。
 
+### 自动发布
+
+推送 `v*` tag 会触发 `.github/workflows/release.yml`：在 ubuntu runner 上 `fetch-deps.sh` → `build.sh` → 用仓库 secret 中的 keystore 签名 → 创建 GitHub Release。
+需要在仓库 secrets 中配置 `VOICEIME_KEYSTORE_B64`（keystore 的 base64）和 `VOICEIME_KS_PASS`。
+Release 说明可选放在 `.github/release-notes/<tag>.md`，缺省时由 GitHub 自动生成。
+
 ### 签名
 
 首次 `build.sh` 会在 `app/voiceime.keystore` 生成一个本地测试签名。更新已安装的应用必须使用同一个 keystore，请自行备份。
